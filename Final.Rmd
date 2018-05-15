@@ -1,0 +1,322 @@
+---
+title: "EM Acceleration"
+author: "Junrui Di"
+date: "May 14, 2018"
+output: html_document
+---
+```{r,message=FALSE, warning=FALSE}
+library(kableExtra)
+library(knitr)
+library(SQUAREM)
+library(dplyr)
+library(mvtnorm)
+setwd("D:/Dropbox/Coursework/Optimization/HW/final/")
+```
+
+### 1. Question 1: Mixture Gaussian
+
+#### 1. Data simulation
+For each of $\mu_2 = c(0.25, 0.5,1)$, simulate 100 data sets
+
+```{r}
+rm(list = ls())
+mu_2 = c(0.25,0.5,1)
+
+
+sim.data1 = list()
+sim.data2 = list()
+sim.data3 = list()
+
+for(i in 1:3){
+  mu_2.i = mu_2[i]
+  for(j in 1:100){
+    set.seed(1234 + j)
+    comp.a = data.frame(source = "A", values = rnorm(100,mean = 0, sd = 1))
+    comp.b = data.frame(source = "B", values = rnorm(100, mean = mu_2.i, sd = 1))
+    dat.i = rbind(comp.a,comp.b)
+    if(i == 1){
+      sim.data1[[j]] = dat.i
+    }
+    if(i == 2){
+      sim.data2[[j]] = dat.i
+    }
+    
+    if(i == 3){
+      sim.data3[[j]] = dat.i
+    }
+  }
+}
+```
+
+`sim.data1` corresponds to $\mu_2 = 0.25$, `sim.data2` corresponds to $\mu_2 = 0.5$, and `sim.data3` corresponds to $mu_2 = 1$.
+
+#### 2. Scripts used for EM algorithm
+
+1. Initial step: cluster the the data into two groups by `kmeans()`, and estimate the group specific mean and variance, and the sample proportion
+
+```{r}
+step.1 = function(y){
+  km.dt = data.frame(x = y, cluster = kmeans(y,2)$cluster)
+  init = km.dt %>% group_by(cluster) %>% summarise(mu = mean(x), variance = var(x), sd = sd(x),size = n())
+  init$pi = init$size/length(y)
+  return(list("pi" = init$pi, "mu" = init$mu, "var" = init$variance))
+}
+```
+
+2. Main body of EM Algorithms to solve for mixture Gaussian distribution (assuming the same variance), i.e., we have the following 5 parameters to estiamte ($\pi_1, \pi_2, \mu_1, \mu_2, \sigma^2$).
+
+```{r}
+# p: vector of parameters from the previous iteration
+# y: vector containing all the data
+gm.em = function(p,y){
+  # observed data likelihood
+  likeli1 = dnorm(x = y, mean = p[3], sd = sqrt(p[5])) * p[1]
+  likeli2 = dnorm(x = y, mean = p[4], sd = sqrt(p[6])) * p[2]
+  likeliall = likeli1 + likeli2
+  
+  # posterior probability of group belonging
+  p.from1 = likeli1 / likeliall
+  p.from2 = likeli2 / likeliall
+  estepprob = cbind(p.from1, p.from2)
+  p1 = sum(estepprob[, 1])
+  p2 = sum(estepprob[, 2])
+  
+  # parameter estimation
+  mu1 = 1/p1 * sum(estepprob[, 1] * y)
+  mu2 = 1/p2 * sum(estepprob[, 2] * y)
+  
+  var1 = (sum(estepprob[, 1] * (y - mu1)^2) + sum(estepprob[, 2] * (y - mu2)^2)) / length(y)
+  var2 = (sum(estepprob[, 1] * (y - mu1)^2) + sum(estepprob[, 2] * (y - mu2)^2)) / length(y)
+  
+  pi1 = p1 / length(y)
+  pi2 = p2 / length(y)
+  
+  pnew = c(pi1,pi2,mu1,mu2,var1,var2)
+  return(pnew)
+}
+```
+
+3. Evalute the observed data likelihood (negative log likelihood) as the stopping creteria
+```{r}
+gm.loglik = function(p,y){
+  likeli1 = dnorm(x = y, mean = p[3], sd = sqrt(p[5])) * p[1]
+  likeli2 = dnorm(x = y, mean = p[4], sd = sqrt(p[6])) * p[2]
+  likeliall = likeli1 + likeli2
+  lll= log(likeliall)
+  alll = sum(lll)
+  return(-alll)
+}
+```
+
+#### 3. Estimation via regular EM
+
+```{r}
+fpevl = data.frame()
+conv = data.frame()
+for(i in 1:100){
+  val1 = sim.data1[[i]]$values
+  val2 = sim.data2[[i]]$values
+  val3 = sim.data3[[i]]$values
+  
+  p0_1 = unlist(step.1(val1))
+  p0_2 = unlist(step.1(val2))
+  p0_3 = unlist(step.1(val3))
+  
+  em_1 = fpiter(p = p0_1, y = val1, fixptfn = gm.em, objfn = gm.loglik,
+                 control = list(tol = 1e-8))
+  em_2 = fpiter(p = p0_2, y = val2, fixptfn = gm.em, objfn = gm.loglik,
+                control = list(tol = 1e-8))
+  em_3 = fpiter(p = p0_3, y = val3, fixptfn = gm.em, objfn = gm.loglik,
+                control = list(tol = 1e-8))
+  fpevl = rbind(fpevl, c(em_1$fpevals,em_2$fpevals,em_3$fpevals))
+  conv = rbind(conv, c(em_1$convergence,em_2$convergence,em_3$convergence))
+}
+
+
+em_result = data.frame(mu2 = c(0.25,0.5,1), No.Fevals_median = apply(fpevl, 2, median), No.Fevals_sd = apply(fpevl, 2, sd), No.fail = apply(conv, 2, FUN = function(x){return(100-sum(x))}))
+row.names(em_result) = NULL
+kable(em_result, "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+On the median level, $mu_2 = 1$ converges the fastest (with the smallest number of fixed point function evalution).
+
+#### 4. Estimation via SQUARE acceleration
+
+```{r,warning=FALSE}
+fpevl.sq = data.frame()
+conv.sq = data.frame()
+for(i in 1:100){
+  val1 = sim.data1[[i]]$values
+  val2 = sim.data2[[i]]$values
+  val3 = sim.data3[[i]]$values
+  
+  p0_1 = unlist(step.1(val1))
+  p0_2 = unlist(step.1(val2))
+  p0_3 = unlist(step.1(val3))
+  
+  em_square1 =  squarem(p = p0_1, y = val1, fixptfn = gm.em, 
+                        control = list(tol = 1e-8))
+  em_square2 =  squarem(p = p0_2, y = val2, fixptfn = gm.em,
+                        control = list(tol = 1e-8))
+  em_square3 =  squarem(p = p0_3, y = val3, fixptfn = gm.em, 
+                        control = list(tol = 1e-8))
+  fpevl.sq = rbind(fpevl.sq, c(em_square1$fpevals,em_square2$fpevals,em_square3$fpevals))
+  conv.sq = rbind(conv.sq, c(em_square1$convergence,em_square2$convergence,em_square3$convergence))
+}
+
+
+
+sqem_result = data.frame(mu2 = c(0.25,0.5,1), No.Fevals_median = apply(fpevl.sq, 2, median), No.Fevals_sd = apply(fpevl.sq, 2, sd), No.fail = apply(conv.sq, 2, FUN = function(x){return(100-sum(x))}))
+row.names(sqem_result) = NULL
+kable(sqem_result, "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+`SQUAREM` dramatically speed up the convergence. For each $mu_2$, `SQUAREM` provides on average 17-fold acceleration of EM. As suggested by the [package vignette](https://cran.r-project.org/web/packages/SQUAREM/vignettes/SQUAREM.pdf), it is the most efficient way not to specifyu the objective function, i.e. the negative log likelihood.
+
+--- 
+
+### 2. Question 2: Multivariate t distribution
+
+#### 1. Data simulation
+For each value of degree of freedom $\nu = (1,2)$, we simulate 100 datasets with $n = 100$, and $p = 10$, i.e. 100 samples from 10 dimensional $t$ multivariate distribution. Data are generated using the `mvtnorm` package. For a 10 dimensional data, there are in total 65 paramters to estimate
+
+```{r}
+rm(list = ls())
+# simulate a 10-dim covariance matrix first
+p = 10
+set.seed(123)
+A = matrix(runif(p^2)*2-1, ncol=p) 
+Sigma = t(A) %*% A
+
+sim.data1 = list()
+sim.data2 = list()
+
+for(i in 1:100){
+  set.seed(1234+i)
+  dat1 = rmvt(n = 100, sigma = Sigma,df = 1, type = "shifted")
+  dat2 = rmvt(n = 100, sigma = Sigma,df = 2, type = "shifted")
+  sim.data1[[i]] = dat1
+  sim.data2[[i]] = dat2
+}
+```
+
+#### 2. Scripts used for EM algorithm
+
+0. Some small functions to be used
+```{r}
+# convert the vector containing the diagonal and lower-triangular values to a covrance matrix
+vectomat = function(x,m=10){
+  mat = diag(x[1:m])
+  mat[lower.tri(mat)] = x[-c(1:m)]
+  mat[upper.tri(mat)] = t(mat)[upper.tri(mat)]
+  return(mat)
+}
+
+# conver the covariance matrix to t vector containing the diagonal and lower-triangular values
+mattovec = function(x){
+  sigma_0 = x
+  diag_0 = diag(sigma_0)
+  low_0 =  sigma_0[lower.tri(sigma_0)]
+  p.sigma0 = c(diag_0,low_0)
+  return(p.sigma0)
+}
+
+```
+
+
+1. Initial step: as suggested in Varadhn and Roland (2008), the sample mean and sample covariance are used as the intial guess
+
+```{r}
+step.1 = function(dat){
+  mu_0 = colMeans(dat)
+  sigma_0 = cov(dat)
+  p.sigma0 = mattovec(sigma_0)
+  
+  return(c(mu_0,p.sigma0))
+}
+```
+
+2. Main body of the EM. We have 65 parameters to estimate. 10 for means, and 55 for $\Sigma$. The actually formula for updating the parameters are based on Varadhan and Roland (2008)/ 
+
+```{r}
+# p: vector containing paramters to be estimated
+# dat: n \times p matrix containing the data
+# m: number of dimensions, default m = 10
+# df: degree of freedom to be used in the procedure
+
+EM_mvt = function(p, dat, m = 10, df){
+  mu = p[1:m]
+  cov.vec = p[-c(1:m)]  
+  sigma =  vectomat(cov.vec, m = 10) 
+  
+  d = diag((sweep(dat,2,mu)) %*% solve(sigma) %*% t(sweep(dat,2,mu)))
+  w = (df+m)/(df+d)
+  
+  mu_1 = c(t(dat) %*% w /sum(w))
+  sigma_1 = (t(sweep(dat,2,mu)) %*% diag(w) %*% sweep(dat,2,mu))/100
+  psigma_1 = mattovec(sigma_1)
+  pnew = c(mu_1,psigma_1)
+  return(pnew)
+}
+```
+
+3. Evalute the observed data likelihood (negative log likelihood) as the stopping creteria
+```{r}
+mvt_loglik = function(p, dat, df, m){
+  mu = p[1:m]
+  cov.vec = p[-c(1:m)]  
+  sigma =  vectomat(cov.vec, m = m) 
+  slli = sum(dmvt(x = dat,delta = mu, sigma = sigma,df = df))
+  return(-slli)
+}
+```
+
+#### 4. Estimation via regular EM and accleration via SQUARE for DF = 1
+
+```{r}
+fpevl.1 = data.frame()
+conv.1 = data.frame()
+for(i in 1:100){
+  dat = sim.data1[[i]]
+  p0 = step.1(dat)
+  
+  em_fp = fpiter(p = p0, df = 1, m = 10, dat = dat, fixptfn = EM_mvt, objfn = mvt_loglik,
+                 control = list(tol = 1e-8))
+  em_square =  squarem(p = p0, df = 1, m = 10, dat = dat, fixptfn = EM_mvt,
+                       control = list(tol = 1e-8))
+  fpevl.1 = rbind(fpevl.1, c(em_fp$fpevals,em_square$fpevals))
+  conv.1 = rbind(conv.1, c(em_fp$convergence,em_square$convergence))
+}
+em_result1 = data.frame(method = c("EM","SQUAREM"), DF = c(1,1),No.Fevals_median = apply(fpevl.1, 2, median), No.Fevals_sd = apply(fpevl.1, 2, sd), No.fail = apply(conv.1, 2, FUN = function(x){return(100-sum(x))}))
+row.names(em_result1) = NULL
+kable(em_result1, "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+For $\mu = 1$, on the medin level, SQUAREM has a 5-fold acceler
+
+#### 5. Estimation via regular EM and accleration via SQUARE for DF = 2
+
+```{r}
+fpevl.2 = data.frame()
+conv.2 = data.frame()
+for(i in 1:100){
+  dat = sim.data1[[i]]
+  p0 = step.1(dat)
+  
+  em_fp = fpiter(p = p0, df = 2, m = 10, dat = dat, fixptfn = EM_mvt, objfn = mvt_loglik,
+                 control = list(tol = 1e-8))
+  em_square =  squarem(p = p0, df = 2, m = 10, dat = dat, fixptfn = EM_mvt,
+                       control = list(tol = 1e-8))
+  fpevl.2 = rbind(fpevl.2, c(em_fp$fpevals,em_square$fpevals))
+  conv.2 = rbind(conv.2, c(em_fp$convergence,em_square$convergence))
+}
+em_result2 = data.frame(method = c("EM","SQUAREM"), DF = c(2,2),No.Fevals_median = apply(fpevl.2, 2, median), No.Fevals_sd = apply(fpevl.2, 2, sd), No.fail = apply(conv.2, 2, FUN = function(x){return(100-sum(x))}))
+row.names(em_result2) = NULL
+kable(em_result2, "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+EM for $\nu = 2$ is on average faster than  the estimation with$\mu = 1$. And SQUAREM has a 4-fold acceleration.
