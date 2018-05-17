@@ -10,7 +10,6 @@ library(knitr)
 library(SQUAREM)
 library(dplyr)
 library(mvtnorm)
-setwd("D:/Dropbox/Coursework/Optimization/HW/final/")
 ```
 
 ### 1. Question 1: Mixture Gaussian
