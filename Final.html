@@ -462,7 +462,7 @@ mattovec = function(x){
   return(c(mu_0,p.sigma0))
 }</code></pre>
 <ol start="2" style="list-style-type: decimal">
-<li>Main body of the EM. We have 65 parameters to estimate. 10 for means, and 55 for <span class="math inline">\(\Sigma\)</span>. The actually formula for updating the parameters are based on Varadhan and Roland (2008)/</li>
+<li>Main body of the EM. We have 65 parameters to estimate. 10 for means, and 55 for <span class="math inline">\(\Sigma\)</span>. The formula for updating the parameters are based on Varadhan and Roland (2008), Eq 24.</li>
 </ol>
 <pre class="r"><code># p: vector containing paramters to be estimated
 # dat: n \times p matrix containing the data
@@ -577,7 +577,7 @@ SQUAREM
 <pre class="r"><code>fpevl.2 = data.frame()
 conv.2 = data.frame()
 for(i in 1:100){
-  dat = sim.data1[[i]]
+  dat = sim.data2[[i]]
   p0 = step.1(dat)
   
   em_fp = fpiter(p = p0, df = 2, m = 10, dat = dat, fixptfn = EM_mvt, objfn = mvt_loglik,
@@ -620,10 +620,10 @@ EM
 2
 </td>
 <td style="text-align:right;">
-145.5
+126
 </td>
 <td style="text-align:right;">
-6.573716
+3.682596
 </td>
 <td style="text-align:right;">
 0
@@ -637,10 +637,10 @@ SQUAREM
 2
 </td>
 <td style="text-align:right;">
-39.0
+33
 </td>
 <td style="text-align:right;">
-3.784017
+4.617884
 </td>
 <td style="text-align:right;">
 0

@@ -238,7 +238,7 @@ step.1 = function(dat){
 }
 ```
 
-2. Main body of the EM. We have 65 parameters to estimate. 10 for means, and 55 for $\Sigma$. The actually formula for updating the parameters are based on Varadhan and Roland (2008)/ 
+2. Main body of the EM. We have 65 parameters to estimate. 10 for means, and 55 for $\Sigma$. The formula for updating the parameters are based on Varadhan and Roland (2008), Eq 24. 
 
 ```{r}
 # p: vector containing paramters to be estimated
@@ -303,7 +303,7 @@ For $\mu = 1$, on the medin level, SQUAREM has a 5-fold acceler
 fpevl.2 = data.frame()
 conv.2 = data.frame()
 for(i in 1:100){
-  dat = sim.data1[[i]]
+  dat = sim.data2[[i]]
   p0 = step.1(dat)
   
   em_fp = fpiter(p = p0, df = 2, m = 10, dat = dat, fixptfn = EM_mvt, objfn = mvt_loglik,
