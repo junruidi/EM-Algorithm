@@ -122,11 +122,11 @@ for(i in 1:100){
   p0_3 = unlist(step.1(val3))
   
   em_1 = fpiter(p = p0_1, y = val1, fixptfn = gm.em, objfn = gm.loglik,
-                 control = list(tol = 1e-8))
+                 control = list(tol = 1e-8,maxiter = 100000))
   em_2 = fpiter(p = p0_2, y = val2, fixptfn = gm.em, objfn = gm.loglik,
-                control = list(tol = 1e-8))
+                control = list(tol = 1e-8,maxiter = 100000))
   em_3 = fpiter(p = p0_3, y = val3, fixptfn = gm.em, objfn = gm.loglik,
-                control = list(tol = 1e-8))
+                control = list(tol = 1e-8,maxiter = 100000))
   fpevl = rbind(fpevl, c(em_1$fpevals,em_2$fpevals,em_3$fpevals))
   conv = rbind(conv, c(em_1$convergence,em_2$convergence,em_3$convergence))
 }
@@ -282,7 +282,7 @@ for(i in 1:100){
   p0 = step.1(dat)
   
   em_fp = fpiter(p = p0, df = 1, m = 10, dat = dat, fixptfn = EM_mvt, objfn = mvt_loglik,
-                 control = list(tol = 1e-8))
+                 control = list(tol = 1e-8,maxiter = 100000))
   em_square =  squarem(p = p0, df = 1, m = 10, dat = dat, fixptfn = EM_mvt,
                        control = list(tol = 1e-8))
   fpevl.1 = rbind(fpevl.1, c(em_fp$fpevals,em_square$fpevals))
@@ -306,7 +306,7 @@ for(i in 1:100){
   p0 = step.1(dat)
   
   em_fp = fpiter(p = p0, df = 2, m = 10, dat = dat, fixptfn = EM_mvt, objfn = mvt_loglik,
-                 control = list(tol = 1e-8))
+                 control = list(tol = 1e-8,maxiter = 100000))
   em_square =  squarem(p = p0, df = 2, m = 10, dat = dat, fixptfn = EM_mvt,
                        control = list(tol = 1e-8))
   fpevl.2 = rbind(fpevl.2, c(em_fp$fpevals,em_square$fpevals))
